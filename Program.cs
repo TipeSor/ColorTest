@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -36,6 +37,8 @@ namespace ColorTest
         public const int ScreenWidth = 100;
         public const int ScreenHeight = 100;
         public static readonly Color Background = Color.Rgb24(0x181818);
+
+        public static int top = 0;
 
         public static void CleanUp()
         {
@@ -80,14 +83,22 @@ namespace ColorTest
             // Mesh mesh = Other.CreateCube();
             Mesh mesh = ObjLoader.Load("res/test.obj");
 
+            Stopwatch total_sw = Stopwatch.StartNew();
+            Stopwatch sw = Stopwatch.StartNew();
+
+            const double target_ms = 1f / 60f * 1000f;
+
             int total_frames = 600;
             for (int frame = 0; frame < total_frames; frame++)
             {
+                top = 0;
+                sw.Restart();
+
                 // math stuff
                 float progress = frame / (float)total_frames;
                 screen.Clear(Background);
 
-                camera.Position = Vector3.Lerp(start, end, progress);
+                // camera.Position = Vector3.Lerp(start, end, progress);
 
                 Matrix4x4 world =
                     Matrix4x4.CreateScale(1.0f) *
@@ -107,12 +118,24 @@ namespace ColorTest
                 ConsoleEx.DrawTexture(screen);
 
                 // ui
-                Cursor.SetPosition(100, 0);
+                Cursor.SetPosition(100, top++);
                 ConsoleEx.WriteProgress(frame, total_frames, "Frame");
                 Console.Write(ANSI.ClearToEOL);
 
+                Cursor.SetPosition(100, top++);
+                double frame_time = sw.Elapsed.TotalMilliseconds;
+                ConsoleEx.Log(frame_time, "00.000ms");
+                Console.Write(ANSI.ClearToEOL);
+
+                Cursor.SetPosition(100, top++);
+                double fps = frame / total_sw.Elapsed.TotalSeconds;
+                ConsoleEx.Log(fps, "00.000");
+                Console.Write(ANSI.ClearToEOL);
+
                 // wait
-                Thread.Sleep(16);
+                double elapsed = sw.Elapsed.TotalMilliseconds;
+                if (elapsed < target_ms)
+                    Thread.Sleep((int)(target_ms - elapsed));
             }
 
             CleanUp();
@@ -121,15 +144,7 @@ namespace ColorTest
         public static void Shade(Texture tex)
         {
             float min = 0;
-            float max = 5;
-
-            Cursor.SetPosition(ScreenWidth, 1);
-            ConsoleEx.Log(min);
-            Console.Write(ANSI.ClearToEOL);
-
-            Cursor.SetPosition(ScreenWidth, 2);
-            ConsoleEx.Log(max);
-            Console.Write(ANSI.ClearToEOL);
+            float max = 2;
 
             for (int y = 0; y < tex.Height; y++)
             {
