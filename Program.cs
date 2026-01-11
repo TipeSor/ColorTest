@@ -6,205 +6,170 @@ using System.Runtime.InteropServices;
 namespace ColorTest
 {
     [StructLayout(LayoutKind.Sequential)]
-    public struct Camera
+    public struct Context
     {
-        public Vector3 Position;
-        public Vector3 Target;
-        public Vector3 Up;
-        public float Fovy;
+        public int Width;
+        public int Height;
 
-        public readonly Vector3 Forward => Vector3.Normalize(Target - Position);
-        public readonly Vector3 Right => Vector3.Normalize(Vector3.Cross(Forward, Up));
+        public Color Background;
 
-        public readonly Matrix4x4 GetViewMatrix()
-            => Matrix4x4.CreateLookAt(
-                Position,
-                Target,
-                Up
-            );
+        public float TargetMs;
 
-        public readonly Matrix4x4 GetProjectionMatrix(float aspect)
-            => Matrix4x4.CreatePerspectiveFieldOfView(
-                    MathF.PI / 180f * Fovy,
-                    aspect,
-                    0.1f,
-                    1000f
-                );
+        public Texture Screen;
+        public Camera Camera;
+        public Matrix4x4 Viewport;
+
+        public Mesh Obj_Mesh;
+        public Transform Obj_Transform;
+        public Texture Obj_Texture;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FrameContext
+    {
+        public int TotalFrames;
+        public int Frame;
+
+        public readonly int Progress => Frame / TotalFrames;
     }
 
     public class Program
     {
-        public const int ScreenWidth = 100;
-        public const int ScreenHeight = 100;
-        public static readonly Color Background = Color.Rgb24(0x181818);
-
         public static int top = 0;
+        public static Stopwatch total_sw = new();
+        public static Stopwatch sw = new();
 
         public static void CleanUp()
         {
             Console.Write(ANSI.Reset);
-            Cursor.SetPosition(0, 32 + 18);
+            Cursor.SetPosition(0, int.Min(50, Console.BufferHeight-2));
             Cursor.Show();
         }
 
-        public static void Main()
+        public static void Setup()
         {
-            // setup console
             Console.Clear();
             Cursor.Hide();
             Console.CancelKeyPress += static (_, _) => CleanUp();
+        }
 
-            // setup textures
-            Texture screen = new(ScreenWidth, ScreenHeight);
-            Texture sushi = TGA.Load("res/test.tga");
+        public static Context SetupContext()
+        {
+            // screen
+            int width = 100;
+            int height = 100;
 
-            Vector3 start = new(0, 0, 2);
-            Vector3 end = new(0, 0, 6);
+            Texture screen = new(width, height);
 
+            // camera
             Camera camera = new Camera
             {
-                Position = start,
+                Position = new(0, 0, 2),
                 Target = new(0, 0, 0),
                 Up = Vector3.UnitY,
                 Fovy = 90
             };
 
+            // viewport
 #pragma warning disable IDE0055
             Matrix4x4 viewport = new(
-                ScreenWidth * 0.5f, 0                   , 0, 0,
-                0                 , -ScreenHeight * 0.5f, 0, 0,
-                0                 , 0                   , 1, 0,
-                ScreenWidth * 0.5f, ScreenHeight * 0.5f , 0, 1
+                width * 0.5f,              0, 0, 0,
+                           0, -height * 0.5f, 0, 0,
+                           0,              0, 1, 0,
+                width * 0.5f,  height * 0.5f, 0, 1
             );
 #pragma warning restore IDE0055
 
+            // obj
+            Mesh obj_mesh = ObjLoader.Load("res/test.obj");
+            Texture obj_texture = TGA.Load("res/test.tga");
+            Transform obj_transform = new Transform
+            {
+                Position = Vector3.Zero,
+                Rotation = Quaternion.Identity,
+                Scale = Vector3.One,
+            };
 
-            // setup mesh
-            // Mesh mesh = Other.CreateCube();
-            Mesh mesh = ObjLoader.Load("res/test.obj");
+            return new Context
+            {
+                Width = 100,
+                Height = 100,
+                Background = Color.Rgb8(25, 25, 25),
 
-            Stopwatch total_sw = Stopwatch.StartNew();
-            Stopwatch sw = Stopwatch.StartNew();
+                TargetMs = 16.67f,
 
-            const double target_ms = 1f / 60f * 1000f;
+                Screen = screen,
+                Camera = camera,
+                Viewport = viewport,
 
-            int total_frames = 600;
-            for (int frame = 0; frame < total_frames; frame++)
+                Obj_Mesh = obj_mesh,
+                Obj_Transform = obj_transform,
+                Obj_Texture = obj_texture,
+            };
+        }
+
+        public static void Main()
+        {
+            Setup();
+            Context ctx = SetupContext();            
+
+            total_sw.Start();
+            sw.Start();
+            
+            FrameContext fctx = new FrameContext { TotalFrames = 600, Frame = 0 };
+            for (int frame = 0; frame < fctx.TotalFrames; frame++)
             {
                 top = 0;
                 sw.Restart();
 
-                // math stuff
-                float progress = frame / (float)total_frames;
-                screen.Clear(Background);
+                fctx = fctx with { Frame = frame };
 
-                // camera.Position = Vector3.Lerp(start, end, progress);
-
-                Matrix4x4 world =
-                    Matrix4x4.CreateScale(1.0f) *
-                    Matrix4x4.CreateFromQuaternion(
-                        Quaternion.CreateFromAxisAngle(Vector3.UnitX, progress * float.Pi) *
-                        Quaternion.CreateFromAxisAngle(Vector3.UnitY, progress * float.Pi * 4) *
-                        Quaternion.CreateFromAxisAngle(Vector3.UnitZ, progress * float.Pi)
-                    ) *
-                    Matrix4x4.CreateTranslation(0f, 0f, 0f);
-
-                Matrix4x4 mvp = world * camera.GetViewMatrix() * camera.GetProjectionMatrix(ScreenWidth / ScreenHeight);
-                Matrix4x4 mvpScreen = mvp * viewport;
-
-                screen.DrawMesh(sushi, mesh, mvpScreen);
-                Shade(screen);
-
-                ConsoleEx.DrawTexture(screen);
-
-                // ui
-                Cursor.SetPosition(100, top++);
-                ConsoleEx.WriteProgress(frame, total_frames, "Frame");
-                Console.Write(ANSI.ClearToEOL);
-
-                Cursor.SetPosition(100, top++);
-                double frame_time = sw.Elapsed.TotalMilliseconds;
-                ConsoleEx.Log(frame_time, "00.000ms");
-                Console.Write(ANSI.ClearToEOL);
-
-                Cursor.SetPosition(100, top++);
-                double fps = frame / total_sw.Elapsed.TotalSeconds;
-                ConsoleEx.Log(fps, "00.000");
-                Console.Write(ANSI.ClearToEOL);
+                Draw(ctx, fctx);
+                DrawUI(ctx, fctx);
 
                 // wait
                 double elapsed = sw.Elapsed.TotalMilliseconds;
-                if (elapsed < target_ms)
-                    Thread.Sleep((int)(target_ms - elapsed));
+                if (elapsed < ctx.TargetMs)
+                    Thread.Sleep((int)(ctx.TargetMs - elapsed));
             }
 
             CleanUp();
         }
 
-        public static void Shade(Texture tex)
+        public static void Draw(
+            Context ctx, 
+            FrameContext fctx)
         {
-            float min = 0;
-            float max = 2;
+            ctx.Screen.Clear(ctx.Background);
+            ctx.Screen.DrawMesh(
+                ctx.Obj_Texture, 
+                ctx.Obj_Mesh,
+                ctx.Obj_Transform, 
+                ctx.Camera, 
+                ctx.Viewport);
+            
+            Shaders.SimpleLight(ctx.Screen, 2f, 4f);
 
-            for (int y = 0; y < tex.Height; y++)
-            {
-                for (int x = 0; x < tex.Width; x++)
-                {
-                    int index = tex.Idx(x, y);
-                    float depth = tex.Depth[index];
-                    if (depth == float.PositiveInfinity)
-                        continue;
-
-                    Color c = Color.Rgba(0, 0, 0, MathF.Pow((depth - min) / (max - min), 2));
-
-                    tex.BlendPixel(index, c);
-                }
-            }
+            ConsoleEx.DrawTexture(ctx.Screen);
         }
 
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void RgbShade(Texture tex)
+        public static void DrawUI(
+            Context ctx,
+            FrameContext fctx)
         {
-            RgbShade(tex, 1.0f);
-        }
+            Cursor.SetPosition(100, top++);
+            ConsoleEx.WriteProgress(fctx.Frame, fctx.TotalFrames, "Frame");
+            Console.Write(ANSI.ClearToEOL);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void IRgbShade(Texture tex)
-        {
-            IRgbShade(tex, 1.0f);
-        }
+            Cursor.SetPosition(100, top++);
+            double frame_time = sw.Elapsed.TotalMilliseconds;
+            ConsoleEx.Log(frame_time, "00.000ms");
+            Console.Write(ANSI.ClearToEOL);
 
-        public static void RgbShade(Texture tex, float a)
-        {
-            for (int y = 0; y < tex.Height; y++)
-            {
-                for (int x = 0; x < tex.Width; x++)
-                {
-                    tex[x, y] = Color.Rgba(
-                        r: (float)y / tex.Height,
-                        g: (float)x / tex.Width,
-                        b: 0.0f,
-                        a: a
-                    );
-                }
-            }
-        }
-
-        public static void IRgbShade(Texture tex, float a)
-        {
-            for (int y = 0; y < tex.Height; y++)
-            {
-                for (int x = 0; x < tex.Width; x++)
-                {
-                    tex[x, y] = Color.Rgba(
-                        r: 1.0f - ((float)y / tex.Height),
-                        g: 1.0f - ((float)x / tex.Width),
-                        b: 0.0f,
-                        a: a
-                    );
-                }
-            }
+            Cursor.SetPosition(100, top++);
+            double fps = fctx.Frame / total_sw.Elapsed.TotalSeconds;
+            ConsoleEx.Log(fps, "00.000");
+            Console.Write(ANSI.ClearToEOL);
         }
     }
 }

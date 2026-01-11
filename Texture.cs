@@ -173,8 +173,15 @@ namespace ColorTest
         public void DrawMesh(
             Texture tex,
             Mesh mesh,
-            Matrix4x4 m)
+            Transform transform,
+            Camera camera,
+            Matrix4x4 viewport)
         {
+            Matrix4x4 m = transform.GetMatrix() * 
+                            camera.GetViewMatrix() * 
+                            camera.GetProjectionMatrix(Width / Height) *
+                            viewport;
+
             for (int i = 0; i < mesh.TriangleCount; i++)
             {
                 int baseIndex = i * 3;
