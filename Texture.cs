@@ -179,7 +179,7 @@ namespace ColorTest
         {
             Matrix4x4 m = transform.GetMatrix() * 
                             camera.GetViewMatrix() * 
-                            camera.GetProjectionMatrix(Width / Height) *
+                            camera.GetProjectionMatrix(Width / (float)Height) *
                             viewport;
 
             for (int i = 0; i < mesh.TriangleCount; i++)
