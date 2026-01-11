@@ -29,8 +29,9 @@ namespace ColorTest
     {
         public int TotalFrames;
         public int Frame;
+        public double DeltaTime;
 
-        public readonly int Progress => Frame / TotalFrames;
+        public readonly float Progress => Frame / (float)TotalFrames;
     }
 
     public class Program
@@ -116,30 +117,36 @@ namespace ColorTest
             total_sw.Start();
             sw.Start();
             
-            FrameContext fctx = new FrameContext { TotalFrames = 600, Frame = 0 };
+            FrameContext fctx = new FrameContext { TotalFrames = 600, Frame = 0, DeltaTime = 0 };
+            
             for (int frame = 0; frame < fctx.TotalFrames; frame++)
             {
                 top = 0;
                 sw.Restart();
 
-                fctx = fctx with { Frame = frame };
+                fctx = fctx with { Frame = frame, DeltaTime = 1/60f };
 
-                Draw(ctx, fctx);
-                DrawUI(ctx, fctx);
+                Draw(ref ctx, fctx);
+                DrawUI(ref ctx, fctx);
 
                 // wait
                 double elapsed = sw.Elapsed.TotalMilliseconds;
                 if (elapsed < ctx.TargetMs)
-                    Thread.Sleep((int)(ctx.TargetMs - elapsed));
+                   Thread.Sleep((int)(ctx.TargetMs - elapsed));
             }
 
             CleanUp();
         }
 
         public static void Draw(
-            Context ctx, 
+            ref Context ctx, 
             FrameContext fctx)
         {
+
+            ctx.Obj_Transform.Rotation = ctx.Obj_Transform.Rotation * Quaternion.CreateFromAxisAngle(
+                Vector3.UnitY, 
+                MathF.PI * 2f * (float)fctx.DeltaTime);
+
             ctx.Screen.Clear(ctx.Background);
             ctx.Screen.DrawMesh(
                 ctx.Obj_Texture, 
@@ -154,7 +161,7 @@ namespace ColorTest
         }
 
         public static void DrawUI(
-            Context ctx,
+            ref Context ctx,
             FrameContext fctx)
         {
             Cursor.SetPosition(100, top++);
