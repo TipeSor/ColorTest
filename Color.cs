@@ -77,7 +77,7 @@ namespace ColorTest
             => (byte)Math.Clamp((int)((v * 255.0f) + 0.5f), 0, 255);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ToRgb8(out byte r, out byte g, out byte b)
+        public readonly void ToRgb8(out byte r, out byte g, out byte b)
         {
             float a = A;
             r = ToByte(R * a);
@@ -86,7 +86,16 @@ namespace ColorTest
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ToRgb24()
+        public readonly void ToRgba8(out byte r, out byte g, out byte b, out byte a)
+        {
+            r = ToByte(R);
+            g = ToByte(G);
+            b = ToByte(B);
+            a = ToByte(A);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly int ToRgb24()
         {
             float a = A;
             return
@@ -96,7 +105,7 @@ namespace ColorTest
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public uint ToRgba32()
+        public readonly uint ToRgba32()
         {
             return
                 ((uint)ToByte(R) << 24) |
@@ -106,16 +115,16 @@ namespace ColorTest
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Equals(Color other) =>
+        public readonly bool Equals(Color other) =>
             R == other.R &&
             G == other.G &&
             B == other.B &&
             A == other.A;
 
-        public override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
             => obj is Color other && Equals(other);
 
-        public override int GetHashCode()
+        public override readonly int GetHashCode()
             => HashCode.Combine(R, G, B, A);
 
         public static bool operator ==(Color a, Color b) => a.Equals(b);
@@ -127,7 +136,6 @@ namespace ColorTest
         public static readonly Color Green = Rgba8(0, 255, 0, 255);
         public static readonly Color Blue = Rgba8(0, 0, 255, 255);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Color BlendOver(Color src, Color dst)
         {
             float sa = src.A;
@@ -146,6 +154,24 @@ namespace ColorTest
                 ((src.B * sa) + (dst.B * da * (1.0f - sa))) / outA;
 
             return new Color(r, g, b, outA);
+        }
+
+        public static void Pack(
+            ReadOnlySpan<Color> src,
+            Span<byte> dst)
+        {
+            {
+                for (int i = 0; i < src.Length; i++)
+                {
+                    int o = i * 4;
+                    Color c = src[i];
+
+                    dst[o + 0] = ToByte(c.R);
+                    dst[o + 1] = ToByte(c.G);
+                    dst[o + 2] = ToByte(c.B);
+                    dst[o + 3] = ToByte(c.A);
+                }
+            }
         }
     }
 }

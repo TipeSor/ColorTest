@@ -8,8 +8,8 @@ namespace ColorTest
         public readonly Vector2[] Texcoords;
         public readonly int[] Indices;
 
-        public int VertexCount => Vertices.Length;
-        public int TriangleCount => Indices.Length / 3;
+        public readonly int VertexCount => Vertices.Length;
+        public readonly int TriangleCount => Indices.Length / 3;
 
         public Mesh(
             Vector3[] vertices,

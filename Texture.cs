@@ -54,6 +54,7 @@ namespace ColorTest
             Array.Fill(Depth, float.PositiveInfinity);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<Color> AsSpan()
             => Pixels.AsSpan();
 
@@ -61,18 +62,6 @@ namespace ColorTest
         public void BlendPixel(int index, Color src)
         {
             Pixels[index] = Color.BlendOver(src, Pixels[index]);
-        }
-
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector3 ToScreen(Vector4 v)
-        {
-            float invW = 1f / v.W;
-            return new Vector3(
-                v.X * invW,
-                v.Y * invW,
-                v.Z
-            );
         }
 
         public void DrawPoint(Vector2 p, Color color)
@@ -169,130 +158,5 @@ namespace ColorTest
                 }
             }
         }
-
-        public void DrawMesh(
-            Texture tex,
-            Mesh mesh,
-            Transform transform,
-            Camera camera,
-            Matrix4x4 viewport)
-        {
-            Matrix4x4 m = transform.GetMatrix() * 
-                            camera.GetViewMatrix() * 
-                            camera.GetProjectionMatrix(Width / (float)Height) *
-                            viewport;
-
-            for (int i = 0; i < mesh.TriangleCount; i++)
-            {
-                int baseIndex = i * 3;
-
-                int i0 = mesh.Indices[baseIndex];
-                int i1 = mesh.Indices[baseIndex + 1];
-                int i2 = mesh.Indices[baseIndex + 2];
-
-                Vector4 c0 = Vector4.Transform(new Vector4(mesh.Vertices[i0], 1), m);
-                Vector4 c1 = Vector4.Transform(new Vector4(mesh.Vertices[i1], 1), m);
-                Vector4 c2 = Vector4.Transform(new Vector4(mesh.Vertices[i2], 1), m);
-
-                Vector3 s0 = ToScreen(c0);
-                Vector3 s1 = ToScreen(c1);
-                Vector3 s2 = ToScreen(c2);
-
-                DrawTrig(
-                    tex,
-                    s0, s1, s2,
-                    mesh.Texcoords[i0],
-                    mesh.Texcoords[i1],
-                    mesh.Texcoords[i2]
-                );
-            }
-        }
-
-        public void DrawTrig(
-            Texture texture,
-            Vector3 v1, Vector3 v2, Vector3 v3,
-            Vector2 uv1, Vector2 uv2, Vector2 uv3)
-        {
-            int minX = Math.Max(0, (int)MathF.Floor(Min(v1.X, v2.X, v3.X)));
-            int minY = Math.Max(0, (int)MathF.Floor(Min(v1.Y, v2.Y, v3.Y)));
-            int maxX = Math.Min(Width - 1, (int)MathF.Ceiling(Max(v1.X, v2.X, v3.X)));
-            int maxY = Math.Min(Height - 1, (int)MathF.Ceiling(Max(v1.Y, v2.Y, v3.Y)));
-
-            float area = Edge(v1, v2, v3.X, v3.Y);
-            if (area == 0) return;
-
-            float invZ1 = 1f / v1.Z;
-            float invZ2 = 1f / v2.Z;
-            float invZ3 = 1f / v3.Z;
-
-            Vector2 uv1z = uv1 * invZ1;
-            Vector2 uv2z = uv2 * invZ2;
-            Vector2 uv3z = uv3 * invZ3;
-
-            for (int y = minY; y <= maxY; y++)
-            {
-                for (int x = minX; x <= maxX; x++)
-                {
-                    float px = x + 0.5f;
-                    float py = y + 0.5f;
-
-                    float w1 = Edge(v2, v3, px, py);
-                    float w2 = Edge(v3, v1, px, py);
-                    float w3 = Edge(v1, v2, px, py);
-
-                    if ((w1 < 0 || w2 < 0 || w3 < 0) &&
-                        (w1 > 0 || w2 > 0 || w3 > 0))
-                        continue;
-
-                    w1 /= area;
-                    w2 /= area;
-                    w3 /= area;
-
-                    float invZ =
-                        (w1 * invZ1) +
-                        (w2 * invZ2) +
-                        (w3 * invZ3);
-
-                    if (invZ <= 0) continue;
-
-                    float depth = 1f / invZ;
-
-                    int idx = Idx(x, y);
-
-                    if (depth >= Depth[idx])
-                        continue;
-
-                    Depth[idx] = depth;
-
-                    Vector2 uv =
-                        ((w1 * uv1z) + (w2 * uv2z) + (w3 * uv3z)) * depth;
-
-                    int tx = (int)(uv.X * (texture.Width - 1));
-                    int ty = (int)(uv.Y * (texture.Height - 1));
-
-                    tx = Math.Clamp(tx, 0, texture.Width - 1);
-                    ty = Math.Clamp(ty, 0, texture.Height - 1);
-
-                    BlendPixel(idx, texture[tx, ty]);
-                }
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float Edge(Vector3 a, Vector3 b, float x, float y)
-        {
-            // (y1 − y0)x + (x0 − x1)y + (x1y0 − x0y1)
-            return ((b.Y - a.Y) * x) +
-                   ((a.X - b.X) * y) +
-                   ((b.X * a.Y) - (a.X * b.Y));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float Min(float a, float b, float c) =>
-            float.Min(float.Min(a, b), c);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float Max(float a, float b, float c) =>
-            float.Max(float.Max(a, b), c);
     }
 }

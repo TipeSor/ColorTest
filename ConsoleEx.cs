@@ -45,7 +45,6 @@ namespace ColorTest
 
             for (int y = 0; y < tex.Height; y += 2)
             {
-                // Move cursor once per row
                 sb.Append(ANSI.CursorPosition(0, y / 2));
 
                 for (int x = 0; x < tex.Width; x++)
@@ -127,13 +126,13 @@ namespace ColorTest
         public static string CursorPosition(int left, int top)
             => $"\u001b[{top + 1};{left + 1}H";
 
-        public static string Clear
+        public static readonly string Clear
             = "\u001b[2J";
 
-        public static string ClearToEOL
+        public static readonly string ClearToEOL
             = "\u001b[K";
 
-        public static string Reset
+        public static readonly string Reset
             = "\u001b[0m";
     }
 

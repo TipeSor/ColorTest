@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.Intrinsics.X86;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace ColorTest
 {
@@ -22,7 +17,6 @@ namespace ColorTest
                         continue;
 
                     Color c = Color.Rgba(0, 0, 0, MathF.Pow((depth - min) / (max - min), 2));
-
                     tex.BlendPixel(index, c);
                 }
             }
@@ -30,33 +24,46 @@ namespace ColorTest
 
         public static void Gradient(Texture tex, float a = 1.0f)
         {
-            for (int y = 0; y < tex.Height; y++)
+            int width = tex.Width;
+            int height = tex.Height;
+
+            float invH = 1.0f / tex.Height;
+            float invW = 1.0f / tex.Width;
+
+            Span<Vector4> pixels =
+                MemoryMarshal.Cast<Color, Vector4>(tex.AsSpan());
+
+            int index = 0;
+            for (int y = 0; y < height; y++)
             {
-                for (int x = 0; x < tex.Width; x++)
+                float g = y * invH;
+                for (int x = 0; x < width; x++)
                 {
-                    tex[x, y] = Color.Rgba(
-                        r: (float)y / tex.Height,
-                        g: (float)x / tex.Width,
-                        b: 0.0f,
-                        a: a
-                    );
+                    pixels[index++] = new Vector4(x * invW, g, 0, a);
                 }
             }
         }
 
-        public static void IGradient(Texture tex, float a = 1.0f)
+        public static void Grayscale(Texture tex)
         {
-            for (int y = 0; y < tex.Height; y++)
+            int width = tex.Width;
+            int height = tex.Height;
+
+            const float Wr = 0.2126f;
+            const float Wg = 0.7152f;
+            const float Wb = 0.0722f;
+
+            Span<Vector4> pixels =
+                MemoryMarshal.Cast<Color, Vector4>(tex.AsSpan());
+
+            for (int index = 0; index < height * width; index++)
             {
-                for (int x = 0; x < tex.Width; x++)
-                {
-                    tex[x, y] = Color.Rgba(
-                        r: 1.0f - ((float)y / tex.Height),
-                        g: 1.0f - ((float)x / tex.Width),
-                        b: 0.0f,
-                        a: a
-                    );
-                }
+                Vector4 p = pixels[index];
+                float gray =
+                    (p.X * Wr) +
+                    (p.Y * Wg) +
+                    (p.Z * Wb);
+                pixels[index] = new Vector4(gray, gray, gray, p.W);
             }
         }
     }
